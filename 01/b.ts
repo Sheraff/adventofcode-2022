@@ -1,4 +1,4 @@
-import {readFile} from "node:fs/promises"
+import { readFile } from "node:fs/promises"
 import { dirname, join } from "node:path"
 
 const cwd = new URL(dirname(import.meta.url)).pathname
