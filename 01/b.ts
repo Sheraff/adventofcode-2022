@@ -22,6 +22,9 @@ void async function () {
 		}
 	}
 	calories.sort((a, b) => b - a)
-	console.log(calories[0] + calories[1] + calories[2])
+	if (index < 2) {
+		throw new Error('wront input size')
+	}
+	console.log(calories[0]! + calories[1]! + calories[2]!)
 }()
 

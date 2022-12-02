@@ -7,5 +7,5 @@ bun 01/a.ts
 
 or
 ```sh
-tsc && node 01/a.js
+npm run run 01/a.js
 ```

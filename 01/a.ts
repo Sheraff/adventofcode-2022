@@ -11,8 +11,12 @@ let max = 0
 let maxIndex = 0
 for (const line of lines) {
 	if (!line) {
-		if (calories[index] > max) {
-			max = calories[index]
+		const current = calories[index]
+		if (typeof current === "undefined") {
+			throw new Error('wrong input')
+		}
+		if (current > max) {
+			max = current
 			maxIndex = index
 		}
 		index++
