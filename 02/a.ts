@@ -43,7 +43,7 @@ void async function () {
 		const bChoice = POWER_MAP[b]
 		const round = aChoice - bChoice
 		// @ts-expect-error -- unchecked access is behind a nullish check
-		const roundScore = ROUND_SCORE_MAP[round] ?? 0
+		const roundScore = (ROUND_SCORE_MAP[round] ?? 0) as number
 
 		score += SCORE_MAP[b] + roundScore
 	}
