@@ -1,5 +1,7 @@
 # adventofcode-2022
 
+https://adventofcode.com/2022
+
 run with 
 ```sh
 bun 01/a.ts
