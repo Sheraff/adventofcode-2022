@@ -32,6 +32,8 @@ if (!start || !end) throw new Error("No start or end")
 
 const path = aStar(matrix, start, end)
 
+if (!path) throw new Error("No path found")
+
 console.log(path.length - 1)
 
 
