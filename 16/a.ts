@@ -13,8 +13,6 @@ type Valve = {
 	leadsTo: [string, number][]
 }
 
-let position = 'AA'
-
 const graph = new Map<string, Valve>()
 
 // make graph
@@ -87,11 +85,13 @@ function findPathFromTo(from: string, to: string, avoid: Set<string> = new Set()
 			.reduce((a, b) => Math.min(a, b), Infinity)
 	}
 
-	fromMap.set(to, duration)
-	if (!paths.has(to)) {
-		paths.set(to, new Map())
+	if (avoid.size === 0) {
+		fromMap.set(to, duration)
+		if (!paths.has(to)) {
+			paths.set(to, new Map())
+		}
+		paths.get(to)!.set(from, duration)
 	}
-	paths.get(to)!.set(from, duration)
 
 	return duration
 }
@@ -174,23 +174,17 @@ function resolve(nodes: string[]): number {
 	return score
 }
 
-// loop
-// - on a node
-//   - find paths to all closed valves and associated travel duration
-//   - add to tree
-//      - open current (if closed) and then go to all open valves (if duration is OK)
-//      - go to all open valves (if duration is OK)
-//   - if no paths, resolve tree and prune
-
 
 function nodeListDisplay(nodes: string[]) {
 	let string = ''
 	for (let i = 0; i < nodes.length; i++) {
 		const node = nodes[i]!
 		if (i > 0 && nodes[i - 1] === node) {
-			string += ' open'
+			continue
+		} else if (i > 0) {
+			string += `  _${String(findPathFromTo(nodes[i-1]!, node)).padStart(2, '0')}_  ${node}`
 		} else {
-			string += ` > ${node}`
+			string += ` ${node}`
 		}
 	}
 	return string
