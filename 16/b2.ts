@@ -117,65 +117,48 @@ function processGraph(agents: string[][], closed: Set<string>, start: number = 1
 		if (!availableAgents.length) {
 			continue
 		}
-		if (availableAgents.length === 2) {
-			const current = availableAgents.map(agent => agent.at(-1)!)
-			const possibilities = Array.from(closed.values())
-				.filter(name => !current.includes(name))
-				.map(name => [name, current.map(c => findPathFromTo(c, name))] as [string, number[]])
-				.filter(([,durations]) => durations.some(
-					(duration, i) => duration + minute + (graph.get(current[i]!)!.flow === 0 ? 0 : 1) < TIME_LIMIT)
-				)
 
-			if (!possibilities.length) {
-				continue
+		const current = availableAgents.map(agent => agent.at(-1)!)
+		const possibilities = Array.from(closed.values())
+			.filter(name => !current.includes(name))
+			.map(name => [name, current.map(c => findPathFromTo(c, name))] as [string, number[]])
+			.filter(([,durations]) => durations.some(
+				(duration, i) => duration + minute + (graph.get(current[i]!)!.flow === 0 ? 0 : 1) < TIME_LIMIT)
+			)
+
+		if (!possibilities.length) {
+			if (availableAgents.length === agents.length) {
+				break
 			}
-			
-			const permutations: [string, string][] = []
-			for (let i = 0; i < possibilities.length; i++) {
-				if (possibilities[i]![1][0]! + minute + graph.get(current[0]!)!.flow === 0 ? 0 : 1 >= TIME_LIMIT) continue
-				for (let j = 0; j < possibilities.length; j++) {
-					if (i === j) continue
-					if (possibilities[j]![1][1]! + minute + graph.get(current[1]!)!.flow === 0 ? 0 : 1 >= TIME_LIMIT) continue
-					permutations.push([possibilities[i]![0], possibilities[j]![0]])
+			continue
+		}
+		
+		const permutations = choose(possibilities, availableAgents.length)
+			.filter(permutation => {
+				for (let i = 0; i < permutation.length; i++) {
+					if (permutation[i]![1][i]! + minute + graph.get(current[i]!)!.flow === 0 ? 0 : 1 >= TIME_LIMIT) return false
 				}
-			}
+				return true
+			})
+			.map(permutation => permutation.map(([name]) => name))
 
-			if (!permutations.length) {
-				continue
+		if (!permutations.length) {
+			if (availableAgents.length === agents.length) {
+				break
 			}
-
-			const scores: number[] = []
-			for (const [a, b] of permutations) {
-				const aArray = new Array(findPathFromTo(current[0]!, a) - 1).fill(current[0]).concat(a)
-				const bArray = new Array(findPathFromTo(current[1]!, b) - 1).fill(current[1]).concat(b)
-				scores.push(processGraph([
-					[...agents[0]!, ...aArray],
-					[...agents[1]!, ...bArray],
-				], new Set(closed), minute))
-			}
-			return Math.max(...scores)
+			continue
 		}
-		if (availableAgents.length === 1) {
-			const agent = availableAgents[0]!
-			const current = agent.at(-1)!
-			const otherCurrents = agents.filter(other => other !== agent).map(other => other.at(-1)!)
-			const possibilities = Array.from(closed.values())
-				.filter(name => name !== current && !otherCurrents.includes(name))
-				.map(name => [name, findPathFromTo(current, name)] as [string, number])
-				.filter(([,duration]) => minute + duration + (graph.get(current)!.flow === 0 ? 0 : 1) < TIME_LIMIT)
-
-			if (!possibilities.length) {
-				continue
-			}
-
-			const scores: number[] = []
-			for (const possibility of possibilities) {
-				const array = new Array(possibility[1] - 1).fill(current).concat(possibility[0])
-				const nextAgents = agents.map(other => other === agent ? [...agent, ...array] : other)
-				scores.push(processGraph(nextAgents, new Set(closed), minute))
-			}
-			return Math.max(...scores)
+		const scores: number[] = []
+		for (const permutation of permutations) {
+			const newArray = agents.map((agent, a) => {
+				const i = availableAgents.indexOf(agent)
+				if (i === -1) return []
+				return new Array(findPathFromTo(availableAgents[i]!.at(-1)!, permutation[i]!) - 1).fill(availableAgents[i]!.at(-1)!).concat(permutation[i]) as string[]
+			})
+			const newAgents = agents.map((agent, a) => [...agent, ...newArray[a]!])
+			scores.push(processGraph(newAgents, new Set(closed), minute))
 		}
+		return Math.max(...scores)
 	}
 
 	// resolve
@@ -201,6 +184,14 @@ function resolve(agents: string[][]): number {
 	display(agents, score)
 	return score
 }
+
+function choose<T>(arr: T[], k: number, prefix: T[] = []): T[][] {
+	if (k === 0) return [prefix]
+	return arr.flatMap((v, i) =>
+		choose(arr.slice(i+1), k-1, [...prefix, v])
+	)
+}
+
 
 function display(agents: string[][], score: number) {
 	if (maxSoFar < score) {
