@@ -53,187 +53,145 @@ for (const [name, valve] of graph) {
 	}
 }
 
+console.log(graph)
+
 // memoize all paths from any node to any node (or write a function that finds path and memoizes it) and associated travel duration
+const paths = new Map<string, Map<string, number>>()
+function findPathFromTo(from: string, to: string, avoid: Set<string> = new Set()) {
+	let fromMap = paths.get(from)
+	if (fromMap) {
+		const duration = fromMap.get(to)
+		if (duration !== undefined) {
+			return duration
+		}
+	}
+	if (!fromMap) {
+		fromMap = new Map()
+		paths.set(from, fromMap)
+	}
+
+	let duration: number
+
+	const valve = graph.get(from)!
+	const found = valve.leadsTo.find(([name]) => name === to)
+	if (found) {
+		duration = found[1]
+	} else {
+		duration = valve.leadsTo
+			.filter(([name]) => !avoid.has(name))
+			.map(([name, duration]) => {
+				const subAvoid = new Set(avoid)
+				subAvoid.add(from)
+				return duration + findPathFromTo(name, to, subAvoid)
+			})
+			.reduce((a, b) => Math.min(a, b), Infinity)
+	}
+
+	fromMap.set(to, duration)
+	if (!paths.has(to)) {
+		paths.set(to, new Map())
+	}
+	paths.get(to)!.set(from, duration)
+
+	return duration
+}
 
 // create set of all closed valves (all valves - valves with flow === 0)
+const closedValves = new Set(graph.keys())
+closedValves.delete('AA')
+let maxSoFar = 0
+const score = processGraph(['AA'], closedValves, 0)
+console.log({score})
+
+function processGraph(nodes: string[], closed: Set<string>, length: number): number {
+	const current = nodes.at(-1)!
+
+	// path and duration to all closed nodes
+	const possibilities = Array.from(closed.values())
+		.filter(name => name !== current && name !== nodes.at(-2))
+		.map(name => [name, findPathFromTo(current, name)] as [string, number])
+
+	// filter out paths that are too long
+	const possibleWithOpen = graph.get(current)!.flow === 0
+		? possibilities.filter(([,duration]) => length + duration < 30)
+		: possibilities.filter(([,duration]) => length + duration + 1 < 30)
+
+	if (!possibleWithOpen.length) {
+		const finalNodes = length + 1 <= 30 && closed.has(current)
+			? [...nodes, current]
+			: nodes
+		const score = resolve(finalNodes)
+		if (maxSoFar < score) {
+			maxSoFar = score
+		}
+		const scoreString = `${String(score).padStart(String(maxSoFar).length, '0')} / ${maxSoFar}`
+		const durationString = String(length).padStart(2, '0')
+		const nodeListString = nodeListDisplay(finalNodes)
+		console.log(`${scoreString} in ${durationString}:${nodeListString}`)
+		return score
+	}
+
+	let scores: number[] = []
+	if (possibleWithOpen.length) {
+		const newClosed = new Set(closed)
+		newClosed.delete(current)
+		const withOpenScores = graph.get(current)!.flow === 0
+			? possibleWithOpen.map(([name, duration]) => processGraph([...nodes, name], newClosed, length + duration))
+			: possibleWithOpen.map(([name, duration]) => processGraph([...nodes, current, name], newClosed, length + duration + 1))
+		scores.push(...withOpenScores)
+	}
+
+	return Math.max(...scores)
+}
+
+function resolve(nodes: string[]): number {
+	let score = 0
+	let scorePerIteration = 0
+	let minutes = 0
+
+	for (let i = 1; i < nodes.length; i++) {
+		const node = nodes[i]!
+		const prev = nodes[i - 1]!
+		
+		// open valve
+		if (prev === node) {
+			minutes++
+			score += scorePerIteration
+			scorePerIteration += graph.get(node)!.flow
+			continue
+		}
+
+		// move to next valve
+		const duration = findPathFromTo(prev, node)
+		minutes += duration
+		score += scorePerIteration * duration
+	}
+
+	if (minutes < 30) {
+		score += scorePerIteration * (30 - minutes)
+	}
+
+	return score
+}
 
 // loop
 // - on a node
-//   - find paths to all open valves and associated travel duration
+//   - find paths to all closed valves and associated travel duration
 //   - add to tree
 //      - open current (if closed) and then go to all open valves (if duration is OK)
 //      - go to all open valves (if duration is OK)
 //   - if no paths, resolve tree and prune
 
-console.log(graph)
 
-type Node = {
-	in: string,
-	after?: Action[],
-	length: number,
-	open: Set<string>,
-}
-
-type Action = Node & {
-	before: Action | Node,
-} & (
-	| {type: "open"}
-	| {type: "moveTo"}
-)
-
-const actionTree: Node = {
-	in: 'AA',
-	length: 0,
-	open: new Set(),
-}
-
-const branchScores: number[] = []
-console.log('building tree')
-buildTree(actionTree)
-console.log('done')
-// const max = resolveTree(actionTree, 0, 0)
-// console.log({max})
-
-
-function nodePath(node: Node): string {
-	const path = isAction(node) && node.type === "open" ? "**" : node.in
-	if (isAction(node)) {
-		return nodePath(node.before) + " -> " + path
-	}
-	return path
-}
-
-function resolveFromNode(node: Node) {
-	const [branch] = resolveBranch(node)
-	const max = resolveTree(branch, 0, 0)
-	branchScores.push(max)
-	console.log('tree', Math.max(...branchScores), nodePath(node))
-	// prune
-	if (isAction(node)) {
-		let parent = node.before
-		while(true) {
-			if (parent.after) {
-				parent.after.splice(parent.after.indexOf(node), 1)
-				if (parent.after.length > 0) {
-					break
-				}
-				if (!isAction(parent)) {
-					break
-				}
-				parent = parent.before
-			}
-		}
-	}
-}
-
-function buildTree(node: Node) {
-	if (node.length >= 30) {
-		resolveFromNode(node)
-		return
-	}
-	if (isAction(node) && node.open.size === graph.size) {
-		resolveFromNode(node)
-		return
-	}
-	// if (node.length < 5)
-	// 	console.log(`tree building, step ${String(node.length).padStart(2, '0')}: ${nodePath(node)}`)
-
-	const valve = graph.get(node.in)
-	if (!valve) throw new Error(`no valve ${node.in}`)
-
-	const after: Action[] = []
-
-	const open = node.open.has(valve.name)
-	if (!open && valve.flow > 0) {
-		after.push({
-			in: valve.name,
-			type: "open",
-			before: node,
-			length: node.length + 1,
-			open: new Set(node.open).add(valve.name),
-		})
-	}
-
-	valve.leadsTo.forEach(to => {
-		const uniquePath = findUniquePath(to[0], new Set([valve.name]))
-		// avoid dead-ends
-		if (uniquePath) {
-			if (Array.from(uniquePath.values()).reduce((acc, name) => acc && (node.open.has(name) || graph.get(name)!.flow === 0), true)) {
-				return
-			}
-		}
-		after.push({
-			in: to[0],
-			type: "moveTo",
-			before: node,
-			length: node.length + to[1],
-			open: new Set(node.open),
-		})
-	})
-
-	node.after = after
-
-	after.forEach((next, i) => {
-		buildTree(next)
-
-		// if (next.length === 1) {
-		// 	console.log(resolveTree(actionTree, 0, 0))
-		// 	after[i] = null
-		// }
-	})
-}
-
-function findUniquePath(next: string, acc: Set<string> = new Set()): Set<string> | false {
-	acc.add(next)
-	const nextValve = graph.get(next)!
-	if (nextValve.leadsTo.length > 2) return false
-	if (nextValve.leadsTo.length === 1) return acc
-
-	const nextName = nextValve.leadsTo.find(([name]) => name !== next)!
-	if (acc.has(nextName[0])) return acc
-	return findUniquePath(nextName[0], acc)
-}
-
-function isAction(node: Node | Action): node is Action {
-	return "type" in node
-}
-
-function resolveBranch(node: Node | Action): [Node | Action, Node | Action] {
-	if (!isAction(node)) return [node, node]
-	const parent = node.before
-	const [tree, last] = resolveBranch(parent)
-	last.after = [node]
-	return [tree, node]
-}
-
-function resolveTree(node: Node | Action, releasedPerMinute: number, released: number): number {
-	// console.log(`exploring ${node.in} with ${releasedPerMinute} released per minute and ${released} released in total, ${node.length} steps`)
-	const newReleased = released + releasedPerMinute
-	if (isAction(node)) {
-		if (node.type === "open") {
-			if (node.after) {
-				const flow = graph.get(node.in)!.flow
-				const scores = node.after.map(next => resolveTree(next, releasedPerMinute + flow, newReleased))
-				return Math.max(...scores)
-			} else {
-				return newReleased
-			}
-		} else if (node.type === "moveTo") {
-			if (node.after) {
-				const scores = node.after.map(next => resolveTree(next, releasedPerMinute, newReleased))
-				return Math.max(...scores)
-			} else {
-				return newReleased
-			}
+function nodeListDisplay(nodes: string[]) {
+	let string = ''
+	for (let i = 0; i < nodes.length; i++) {
+		const node = nodes[i]!
+		if (i > 0 && nodes[i - 1] === node) {
+			string += ' open'
 		} else {
-			throw new Error(`unknown action type`)
-		}
-	} else {
-		if (node.after) {
-			const scores = node.after.map(next => resolveTree(next, releasedPerMinute, newReleased))
-			return Math.max(...scores)
-		} else {
-			throw new Error(`no after for non-action node ${node.in}`)
+			string += ` > ${node}`
 		}
 	}
+	return string
 }
