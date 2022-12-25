@@ -131,7 +131,6 @@ for (let i = 0; i < ROCKS; i++) {
 console.log({max})
 
 function drawState(grid: number[][], rock?: number[][], x?: number, y?: number) {
-	return
 	const displayMatrix = []
 
 	for (let y = 0; y < grid.length; y++) {

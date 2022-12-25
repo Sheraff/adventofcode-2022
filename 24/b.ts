@@ -37,7 +37,7 @@ const goals = [
 	{
 		x:initial[0]!.length - 2,
 		y: initial.length - 1,
-		min: 502 // ballpark it
+		min: 300 // ballpark it
 	},
 ]
 
@@ -70,7 +70,7 @@ console.log({total})
  *   - or the `number` of steps to the end
  */
 function resolve(grid: Char[][][], position: Pos, goal: Pos & {min: number}, count: number): number | null {
-	if (count >= goal.min) {
+	if (count > goal.min) {
 		return null
 	}
 	// printGrid(grid, position)
